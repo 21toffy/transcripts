@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Meet Transcriptions</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .meeting-card {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .meeting-card:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        .transcript-text {
+            white-space: pre-wrap;
+            font-size: 14px;
+        }
+        .timestamp {
+            font-size: 12px;
+            color: #6c757d;
+        }
+        .speaker {
+            font-weight: bold;
+        }
+        #loading {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,255,255,0.8);
+            z-index: 9999;
+            text-align: center;
+            padding-top: 20%;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-2">Loading data...</p>
+    </div>
+
+    <div class="container mt-5">
+        <div class="row mb-4">
+            <div class="col">
+                <h1 class="display-5">Google Meet Transcriptions</h1>
+                <p class="lead">View and manage your meeting transcripts</p>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Meetings</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group" id="meetingsList">
+                            <!-- Meetings will be listed here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0" id="meetingTitle">Select a meeting</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="meetingDetails">
+                            <div class="alert alert-info">
+                                Select a meeting from the list to view its transcripts and attendees.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM elements
+        const meetingsList = document.getElementById('meetingsList');
+        const meetingTitle = document.getElementById('meetingTitle');
+        const meetingDetails = document.getElementById('meetingDetails');
+        const loading = document.getElementById('loading');
+
+        // Fetch meetings on page load
+        document.addEventListener('DOMContentLoaded', fetchMeetings);
+
+        // Fetch all meetings
+        function fetchMeetings() {
+            loading.style.display = 'block';
+            fetch('/api/meetings')
+                .then(response => response.json())
+                .then(meetings => {
+                    renderMeetingsList(meetings);
+                    loading.style.display = 'none';
+                })
+                .catch(error => {
+                    console.error('Error fetching meetings:', error);
+                    meetingsList.innerHTML = `<div class="alert alert-danger">Error loading meetings</div>`;
+                    loading.style.display = 'none';
+                });
+        }
+
+        // Render meetings list
+        function renderMeetingsList(meetings) {
+            if (meetings.length === 0) {
+                meetingsList.innerHTML = `
+                    <div class="list-group-item text-center py-4">
+                        <p class="mb-0">No meetings found</p>
+                    </div>
+                `;
+                return;
+            }
+
+            meetingsList.innerHTML = '';
+            meetings.forEach(meeting => {
+                const meetingCard = document.createElement('a');
+                meetingCard.href = '#';
+                meetingCard.className = 'list-group-item list-group-item-action meeting-card';
+                meetingCard.innerHTML = `
+                    <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">${meeting.meetingTitle || 'Unnamed Meeting'}</h6>
+                    </div>
+                    <p class="mb-1 small">${meeting.lastUpdated || 'No date'}</p>
+                    <div class="d-flex mt-2">
+                        ${meeting.hasTranscript ? '<span class="badge bg-success me-1">Transcript</span>' : ''}
+                        ${meeting.hasAttendees ? '<span class="badge bg-primary">Attendees</span>' : ''}
+                    </div>
+                `;
+                meetingCard.addEventListener('click', () => loadMeetingDetails(meeting.meetingUniqueId));
+                meetingsList.appendChild(meetingCard);
+            });
+        }
+
+        // Load meeting details
+        function loadMeetingDetails(meetingId) {
+            loading.style.display = 'block';
+            fetch(`/api/meetings/${meetingId}`)
+                .then(response => response.json())
+                .then(data => {
+                    renderMeetingDetails(data);
+                    loading.style.display = 'none';
+                })
+                .catch(error => {
+                    console.error('Error fetching meeting details:', error);
+                    meetingDetails.innerHTML = `<div class="alert alert-danger">Error loading meeting details</div>`;
+                    loading.style.display = 'none';
+                });
+        }
+
+        // Render meeting details
+        function renderMeetingDetails(data) {
+            const meeting = data.meeting;
+            const transcripts = data.transcripts;
+            const attendees = data.attendees;
+
+            // Update meeting title
+            meetingTitle.textContent = meeting.meetingTitle || 'Unnamed Meeting';
+
+            // Create content
+            let content = `
+                <div class="row mb-4">
+                    <div class="col">
+                        <h5>Meeting Details</h5>
+                        <table class="table table-sm">
+                            <tr>
+                                <th>ID:</th>
+                                <td>${meeting.meetingId || 'N/A'}</td>
+                            </tr>
+                            <tr>
+                                <th>Last Updated:</th>
+                                <td>${meeting.lastUpdated || 'N/A'}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            // Attendees section
+            if (Object.keys(attendees).length > 0) {
+                content += `
+                    <div class="row mb-4">
+                        <div class="col">
+                            <h5>Attendees</h5>
+                            <table class="table table-striped table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Join Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                `;
+
+                for (const id in attendees) {
+                    const attendee = attendees[id];
+                    content += `
+                        <tr>
+                            <td>${attendee.name || 'Unknown'}</td>
+                            <td>${attendee.joinTime || 'N/A'}</td>
+                        </tr>
+                    `;
+                }
+
+                content += `
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Transcripts section
+            if (transcripts.length > 0) {
+                content += `
+                    <div class="row">
+                        <div class="col">
+                            <h5>Transcript</h5>
+                            <div class="card">
+                                <div class="card-body transcript-text">
+                `;
+
+                transcripts.forEach(transcript => {
+                    content += `
+                        <div class="mb-3">
+                            <div class="speaker">${transcript.speaker || 'Unknown'}</div>
+                            <div>${transcript.text || ''}</div>
+                            <div class="timestamp">${transcript.timestamp || ''}</div>
+                        </div>
+                    `;
+                });
+
+                content += `
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                content += `
+                    <div class="row">
+                        <div class="col">
+                            <div class="alert alert-warning">No transcript data available for this meeting.</div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            meetingDetails.innerHTML = content;
+        }
+    </script>
+</body>
+</html> 

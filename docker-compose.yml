@@ -1,0 +1,20 @@
+version: '3'
+
+services:
+  flask-api:
+    build: .
+    container_name: meet-transcriber-api
+    restart: unless-stopped
+    ports:
+      - "${PORT:-5005}:${PORT:-5005}"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - FLASK_APP=${FLASK_APP}
+      - FLASK_ENV=${FLASK_ENV}
+      - PORT=${PORT}
+      - ALLOW_CORS=${ALLOW_CORS}
+      - SECRET_KEY=${SECRET_KEY}
+    env_file:
+      - .env 
